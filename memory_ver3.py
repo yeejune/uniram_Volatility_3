@@ -35,7 +35,25 @@ import shutil
 import platform
 from datetime import datetime
 from dataclasses import dataclass, field
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ProcessPoolExecutor, as_completed
+
+# 멀티프로세싱 환경에서는 이 워커 함수가 반드시 파일의 '최상위 레벨'에 있어야 에러가 안 납니다.
+def mp_worker(args_tuple):
+    vol_path, mem_path, plugin = args_tuple
+    cmd_parts = vol_path.split()
+    cmd = cmd_parts + ["-f", mem_path, plugin]
+    try:
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            encoding='utf-8',   # 인코딩 에러 방어
+            errors='ignore',    # 깨진 바이너리 텍스트 튕김 방지
+            timeout=900         # 타임아웃 15분으로 넉넉히 연장
+        )
+        return plugin, result.stdout
+    except Exception as e:
+        return plugin, ""
 
 # =====================================================================
 # 전역 변수
@@ -145,6 +163,8 @@ def run_volatility(plugin, extra_args=None):
             cmd,
             capture_output=True,
             text=True,
+            encoding='utf-8',   
+            errors='ignore',    
             timeout=600
         )
 
@@ -835,6 +855,8 @@ def detect_suspicious_cmdline(report):
         (r'invoke-', 'PowerShell Invoke 호출', 60),
         (r'\.ps1', 'PowerShell 스크립트 실행', 40),
         (r'bypass', '보안 우회 키워드', 50),
+        (r'slack.*--type=renderer', 'Slack 렌더러/외부 통신 의심', 60),
+        (r'chrome.*--headless', 'Chrome 백그라운드 자동화 실행', 60),
     ]
 
     rows = parse_vol_output(cmdline_output)
@@ -2041,31 +2063,31 @@ def main():
 
      # 병렬 처리 워커 수 결정
     cpu_count = os.cpu_count() or 1
-    max_workers = max(1, min(4, cpu_count - 1))
-    print(f"\n  [i] CPU 코어: {cpu_count}개 / 병렬 작업: {max_workers}개")
-
-    def _run_single_plugin(plugin):
-        """단일 플러그인 실행 (병렬용)"""
-        plugin_key = PLUGIN_KEY_MAP.get(plugin, plugin.split('.')[-1].lower())
-        output = run_volatility(plugin)
-        return plugin, plugin_key, output
-
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        futures = {executor.submit(_run_single_plugin, p): p for p in plugins}
+    max_workers = max(1, min(20, cpu_count)) # 20개 코어까지사용하도록 제한(ram 사용 과다 방지
+    print(f"\n  [i] CPU 물리 코어: {cpu_count}개 / 멀티프로세싱 가동: {max_workers}개")
+    
+    mp_args = [(VOL_PATH, MEM_PATH, p) for p in plugins]
+    with ProcessPoolExecutor(max_workers=max_workers) as executor:
+        futures = {executor.submit(mp_worker, arg): arg[2] for arg in mp_args}
         for future in as_completed(futures):
+            plugin = futures[future]
+            plugin_key = PLUGIN_KEY_MAP.get(plugin, plugin.split('.')[-1].lower())
             try:
-                plugin, plugin_key, output = future.result()
+                ret_plugin, output = future.result()
                 if output and output.strip():
                     report.raw_outputs[plugin_key] = output
                     output_file = os.path.join(args.output, f"{plugin_key}.txt")
-                    with open(output_file, 'w', encoding='utf-8') as f:
+                    
+                    # 하네스용 로우 데이터 텍스트 저장 시에도 인코딩 튕김 방지
+                    with open(output_file, 'w', encoding='utf-8', errors='ignore') as f:
                         f.write(output)
+                        
                     line_count = len(output.strip().split('\n'))
                     print(f"  [✓] {plugin}: {line_count}줄 수집 완료")
                 else:
                     print(f"  [!] {plugin}: 결과 없음 또는 오류")
             except Exception as e:
-                print(f"  [✗] {futures[future]} 오류: {e}")
+                print(f"  [✗] {plugin} 오류: {e}")
 
     # =========================================
     # 2단계~7단계: 탐지 분석 수행
