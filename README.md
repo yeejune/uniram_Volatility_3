@@ -30,18 +30,21 @@ python enhance_memory.py <메모리_이미지_경로> -o <출력_디렉토리>
 
 # 예시
 python enhance_memory.py .\Rocba-Memory.raw -o .\forensic_output
-🛠️ Detection Logic & Analytics
+
+```
+
+## Detection Logic & Analytics (for futer)
 프로세스 메모리 무결성: pslist와 psscan 교차 검증을 통한 은닉 프로세스(Hidden Process) 추적
 
 지속성 메커니즘 분석: 비표준 외부 경로 서비스(svcscan) 및 자동 실행 명령 제어권 변조 식별
 
 유출 채널 추적: 웹 브라우저(chrome) 및 사내 메신저(Slack)의 실행 인자값(cmdline) 분석을 통한 내부 데이터 유출 경로 구체화
 
-```
+
 
 ---
 
-이제 정제된 14건의 결과 데이터를 들고 위의 2번 파워쉘 스크립트를 감감 PC에서 구동하여 이벤트 로그를 가져오시면 됩니다. 수집된 텍스트 로그를 AI에 주면, 계정 연동 실수와 해킹의 주체를 칼로 자르듯 명확하게 판별해 줄 것입니다!
+생성된 결과 데이터를 AI를 통해 빠르게 분석하도록 합니다. 
 
 ---
 
