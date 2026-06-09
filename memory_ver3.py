@@ -22,7 +22,7 @@ def auto_install(package: str):
         ])
         print(f"[+] {package} 설치 완료")
 
-auto_install("volatility3")
+# auto_install("volatility3")
 
 # =====================================================================
 # import
