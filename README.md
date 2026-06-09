@@ -39,10 +39,12 @@ forensic_output/
 python enhance_memory.py <메모리_이미지_경로> -o <출력_디렉토리>
 
 # 실행 예시 (Windows)
-python enhance_memory.py .\Rocba-Memory.raw -o .\forensic_output
+python enhance_memory.py .\(target).raw -o .\forensic_output
 
 # 실행 예시 (Linux)
-python3 enhance_memory.py ./linux-memory.img -o ./forensic_output
+python3 enhance_memory.py ./(target).img -o ./forensic_output
+sudo python memory_ver3.py ../(target).001 -o ./forensic_output
+
 
 ```
 
